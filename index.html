@@ -122,6 +122,87 @@
   .swap { transition: opacity .26s ease, transform .26s ease; }
   .swap.out { opacity: 0; transform: translateY(7px); }
 
+  /* ---- panel de ejemplos, a la derecha ---- */
+  #lens {
+    position: fixed;
+    right: 28px;
+    top: 0;
+    bottom: 0;
+    width: min(34vw, 320px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-block: calc(40px + env(safe-area-inset-top, 0px))
+                   calc(104px + env(safe-area-inset-bottom, 0px));
+    pointer-events: none;          /* el lienzo sigue girando detrás */
+  }
+  #lensCard {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    pointer-events: auto;
+    transition: opacity .24s ease, transform .24s ease;
+  }
+  #lensCard.out { opacity: 0; transform: translateY(7px); }
+  .lens-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  #lensCount {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+  }
+  /* Las alturas mínimas mantienen la tarjeta del mismo tamaño de un ejemplo
+     al siguiente, para que no dé saltos al rotar. */
+  #lensTitle {
+    margin: 0;
+    min-height: 2.6em;
+    font-size: 17px;
+    font-weight: 300;
+    line-height: 1.3;
+    letter-spacing: -.01em;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  #lensBody {
+    margin: 0;
+    min-height: 8.25em;
+    font-size: 13px;
+    font-weight: 300;
+    line-height: 1.65;
+    color: var(--ink-3);
+  }
+  #lensDots { display: flex; gap: 5px; margin-top: 4px; }
+  #lensDots button {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 26px;
+    height: 14px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+  }
+  #lensDots span {
+    display: block;
+    width: 100%;
+    height: 1px;
+    background: rgba(255, 255, 255, .16);
+    transition: background .35s ease;
+  }
+  #lensDots button:hover span { background: rgba(255, 255, 255, .42); }
+  #lensDots button[aria-current="true"] span { background: rgba(255, 255, 255, .22); }
+  #lensDots button:focus-visible { outline: 1px solid rgba(255, 255, 255, .6); outline-offset: 2px; }
+  /* relleno que avanza mientras corre el temporizador */
+  #lensDots b { display: block; height: 100%; width: 0; background: var(--ink); }
+
   #dial {
     position: fixed;
     left: 50%;
@@ -159,15 +240,14 @@
 
   #hint {
     position: fixed;
-    right: 28px;
-    top: calc(32px + env(safe-area-inset-top, 0px));
+    left: 28px;
+    bottom: calc(28px + env(safe-area-inset-bottom, 0px));
     margin: 0;
     font-family: var(--mono);
     font-size: 11px;
-    line-height: 1.85;
+    line-height: 1.9;
     letter-spacing: .06em;
     color: rgba(255, 255, 255, .22);
-    text-align: right;
     pointer-events: none;
   }
 
@@ -184,15 +264,41 @@
     color: var(--ink-2);
   }
 
+  @media (max-width: 1080px) {
+    #lens { right: 22px; width: min(38vw, 296px); }
+    #lensTitle { font-size: 16px; }
+  }
+  /* Angosto: el panel baja y se apoya sobre el dial. */
+  @media (max-width: 900px) {
+    #lens {
+      left: 20px;
+      right: 20px;
+      top: auto;
+      bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+      width: auto;
+      padding-block: 0;
+    }
+    #lensCard {
+      background: rgba(0, 0, 0, .76);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      padding: 14px 16px;
+      border-radius: 3px;
+    }
+    #lensTitle, #lensBody { min-height: 0; }
+    #hint { display: none; }
+  }
   @media (max-width: 720px) {
     #hud { top: calc(20px + env(safe-area-inset-top, 0px)); left: 20px; width: min(74vw, 320px); gap: 11px; }
     #desc { font-size: 12.5px; }
-    #hint { display: none; }
+    #lensTitle { font-size: 15px; }
+    #lensBody { font-size: 12.5px; }
     #dial button { min-width: 42px; padding: 0 8px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .swap { transition: none; }
     #dial button { transition: none; }
+    #lensCard { transition: none; }
     .w { animation: none; opacity: 1; transform: none; }
     #rule { animation: none; transform: none; }
   }
@@ -213,7 +319,19 @@
   </div>
 </header>
 
-<p id="hint">← → cambia de dimensión<br>arrastra para orbitar</p>
+<aside id="lens">
+  <div id="lensCard">
+    <div class="lens-head">
+      <span class="eyebrow" id="lensTag">Movimiento</span>
+      <span id="lensCount">01 / 05</span>
+    </div>
+    <h2 id="lensTitle">Adelante o atrás, nada más</h2>
+    <p id="lensBody">Las dos únicas opciones que existen.</p>
+    <div id="lensDots" aria-label="Ejemplos"></div>
+  </div>
+</aside>
+
+<p id="hint">← → cambia de dimensión<br>arrastra para orbitar<br>el panel avanza solo</p>
 
 <nav id="dial" role="tablist" aria-label="Dimensión"></nav>
 
@@ -272,6 +390,89 @@
     }
   ];
   var SCALE = [1.00, 1.18, 1.08, 1.00, 0.70, 0.46];
+
+  // Ejemplos que rotan solos en el panel derecho, agrupados por dimensión.
+  // Cada uno lleva la etiqueta del tipo de hecho que es.
+  var LENS = [
+    [
+      { tag: 'Movimiento', title: 'No hay a dónde ir',
+        body: 'Moverse exige al menos un eje, y aquí no hay ninguno. Un habitante del punto no podría desplazarse ni un poco: no existe el «un poco».' },
+      { tag: 'Geometría', title: 'Ni siquiera tiene tamaño',
+        body: 'Un punto no mide nada. No tiene mitad, ni borde, ni interior. Es posición pura, sin nada que medir.' },
+      { tag: 'Geometría', title: 'Solo cabe una cosa',
+        body: 'Dos puntos distintos ya necesitan una recta que los separe, y esa recta es la primera dimensión. En 0D la palabra «otro» no significa nada.' },
+      { tag: 'Percepción', title: 'Tú, visto desde aquí',
+        body: 'Nada en absoluto. No hay superficie sensible donde proyectarte, ni dirección alguna desde la cual mirarte.' }
+    ],
+    [
+      { tag: 'Movimiento', title: 'Adelante o atrás, nada más',
+        body: 'Las dos únicas opciones que existen. «A un lado» no es una dirección difícil de alcanzar: es una palabra sin significado.' },
+      { tag: 'Movimiento', title: 'Nadie puede adelantar a nadie',
+        body: 'En una recta dos seres no pueden cruzarse. El que nace delante de ti irá delante para siempre, salvo que uno atraviese al otro.' },
+      { tag: 'Percepción', title: 'Su ojo es un punto',
+        body: 'Percibe un único destello que se aclara y se oscurece. Toda su realidad visual cabe en un píxel.' },
+      { tag: 'Geometría', title: 'Una cárcel de dos motas',
+        body: 'Para encerrarlo bastan dos puntos, uno a cada lado. No hay contorno que rodear ni pared que levantar.' },
+      { tag: 'Analogía', title: 'Tú, visto desde ahí',
+        body: 'Solo la parte de ti que corta su recta: un segmento. El resto de tu cuerpo está en direcciones que él no puede ni señalar.' }
+    ],
+    [
+      { tag: 'Percepción', title: 'Ve contornos, no formas',
+        body: 'Su retina es una línea, así que percibe segmentos. Para distinguir un círculo de un cuadrado tiene que rodearlo y notar cómo cambia el brillo del borde.' },
+      { tag: 'Geometría', title: 'Un círculo es una cárcel perfecta',
+        body: 'Basta con rodearlo. No hay «arriba» por donde escapar, igual que a ti no se te ocurre salir de una habitación por la cuarta dirección.' },
+      { tag: 'Biología', title: 'No puede tener tubo digestivo',
+        body: 'Un canal que lo atraviese de lado a lado lo partiría en dos. La anatomía que tú das por sentada desarma a un ser plano.' },
+      { tag: 'Geometría', title: 'La «p» y la «q» son irreconciliables',
+        body: 'Por más que las deslices o las gires dentro del plano, nunca coincidirán. Hace falta levantarlas por la tercera dimensión y voltearlas.' },
+      { tag: 'Analogía', title: 'Tú, visto desde ahí',
+        body: 'Solo la rebanada tuya que cruza su plano. Si bajaras un dedo, verían un óvalo aparecer de la nada, crecer y esfumarse.' }
+    ],
+    [
+      { tag: 'Percepción', title: 'Ves superficies, no volúmenes',
+        body: 'Tu retina es una lámina plana. Por eso los objetos se tapan entre sí y hay que girar una cosa para llegar a conocerla entera.' },
+      { tag: 'Percepción', title: 'Dos ojos para inventar la profundidad',
+        body: 'La tercera dimensión no la ves: tu cerebro la deduce comparando dos imágenes planas ligeramente distintas.' },
+      { tag: 'Matemática', title: 'El único lugar con nudos',
+        body: 'Una cuerda cerrada solo puede anudarse en exactamente tres dimensiones. En dos no alcanza el espacio; en cuatro los nudos se deshacen solos.' },
+      { tag: 'Geometría', title: 'Girar «alrededor de un eje» es una casualidad',
+        body: 'En realidad se gira en un plano. En 3D cada plano tiene una recta perpendicular, y por eso creemos que toda rotación tiene eje.' },
+      { tag: 'Geometría', title: 'Tus manos no se superponen',
+        body: 'Izquierda y derecha son imágenes especulares imposibles de encajar. Es la firma de habitar un espacio de tres ejes.' },
+      { tag: 'Física', title: 'La única dimensión habitable',
+        body: 'Con la ley del inverso del cuadrado existen órbitas y átomos estables. Ehrenfest demostró en 1917 que con más ejes espaciales no los habría.' }
+    ],
+    [
+      { tag: 'Percepción', title: 'Ve el interior de todo',
+        body: 'Su retina es un volumen: percibe volúmenes enteros de golpe. Tu estómago, una caja sellada, el interior de una caja fuerte, todo a la vista sin abrir nada.' },
+      { tag: 'Movimiento', title: 'Ninguna habitación lo encierra',
+        body: 'Sale de un cuarto cerrado sin tocar las paredes, igual que tú sales de un cuadrado dibujado en una hoja levantando el dedo.' },
+      { tag: 'Matemática', title: 'Los nudos se deshacen solos',
+        body: 'Toda cuerda cerrada en 4D se desanuda sin cortarla. A cambio, ahí sí pueden anudarse las superficies: existen esferas anudadas.' },
+      { tag: 'Geometría', title: 'Te devuelve la mano izquierda hecha derecha',
+        body: 'Basta con girarla por la cuarta dirección, como volteas una «p» de papel para obtener una «q». Tu quiralidad deja de ser un obstáculo.' },
+      { tag: 'Movimiento', title: 'Gira sin ningún eje',
+        body: 'Puede rotar en dos planos independientes a la vez. Si la proporción entre ambas velocidades es irracional, nunca repite la misma orientación.' },
+      { tag: 'Percepción', title: 'Tú eres una figura abierta',
+        body: 'Tienes para él el mismo grosor que un dibujo en una hoja: infinitamente delgado y con todo el interior a la intemperie.' },
+      { tag: 'Advertencia', title: 'Esto es una sombra',
+        body: 'El cubo interior no es más pequeño: está más lejos por el cuarto eje. Los ocho cubos del teseracto son idénticos entre sí.' }
+    ],
+    [
+      { tag: 'Geometría', title: 'Vuelve a haber un eje fijo',
+        body: 'En dimensiones impares toda rotación deja al menos una dirección inmóvil. El 5D recupera el eje que el 4D había perdido.' },
+      { tag: 'Geometría', title: 'El contacto se vuelve raro',
+        body: 'Dos superficies que en tu mundo se cortarían en una línea, aquí no se tocan en ningún punto: les sobra espacio para esquivarse.' },
+      { tag: 'Percepción', title: 'Ve pilas de universos',
+        body: 'Todo tu espacio, entero y en un instante, es para él una lámina delgada. Puede ver muchas apiladas a la vez, como un taco de transparencias visto de canto.' },
+      { tag: 'Movimiento', title: 'Dos rutas de escape',
+        body: 'No una dirección perpendicular a tu mundo, sino dos. Encerrarlo exigiría una pared de cuatro dimensiones envolviéndolo por completo.' },
+      { tag: 'Geometría', title: 'Diez planos de giro',
+        body: 'Un objeto de cinco ejes tiene diez planos independientes en los que rotar, aunque solo pueda usar dos a la vez.' },
+      { tag: 'Advertencia', title: 'Nadie vive aquí',
+        body: 'Sin órbitas ni átomos estables, estos habitantes son un experimento mental riguroso, no una predicción. Las dimensiones de la teoría de cuerdas están enrolladas a escala subatómica.' }
+    ]
+  ];
 
   // ---- topología del hipercubo -------------------------------------------
   var sgn = new Float32Array(NV * MAXD);
@@ -503,6 +704,7 @@
     last = now;
     if (dt > 0.05) dt = 0.05;
     step(dt);
+    lensTick(dt);
     renderer.render(scene, camera);
     requestAnimationFrame(tick);
   }
@@ -557,6 +759,79 @@
     reveal(elDesc, d.desc, 150);
   }
 
+  // ---- panel de ejemplos ---------------------------------------------------
+  var elLensCard = document.getElementById('lensCard');
+  var elLensTag = document.getElementById('lensTag');
+  var elLensCount = document.getElementById('lensCount');
+  var elLensTitle = document.getElementById('lensTitle');
+  var elLensBody = document.getElementById('lensBody');
+  var elLensDots = document.getElementById('lensDots');
+
+  var DWELL = 11;                      // segundos que dura cada ejemplo
+  var cursor = [0, 0, 0, 0, 0, 0];     // cada dimensión recuerda dónde se quedó
+  var lensT = 0;
+  var lensHold = false;                // el temporizador se detiene al pasar el ratón
+  var dotsFor = -1;
+  var fill = null;
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  function buildDots(count) {
+    elLensDots.innerHTML = '';
+    for (var d = 0; d < count; d++) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Ejemplo ' + (d + 1) + ' de ' + count);
+      b.appendChild(document.createElement('span'))
+       .appendChild(document.createElement('b'));
+      b.addEventListener('click', (function (at) {
+        return function () { cursor[dim] = at; lensT = 0; paintLens(true); };
+      }(d)));
+      elLensDots.appendChild(b);
+    }
+    dotsFor = dim;
+  }
+
+  function paintLens(animate) {
+    var list = LENS[dim];
+    if (cursor[dim] >= list.length) cursor[dim] = 0;
+    var item = list[cursor[dim]];
+
+    elLensTag.textContent = item.tag;
+    elLensCount.textContent = pad2(cursor[dim] + 1) + ' / ' + pad2(list.length);
+
+    if (animate) {
+      reveal(elLensTitle, item.title, 0);
+      reveal(elLensBody, item.body, 130);
+    } else {
+      elLensTitle.textContent = item.title;
+      elLensBody.textContent = item.body;
+    }
+
+    if (dotsFor !== dim) buildDots(list.length);
+    var dots = elLensDots.children;
+    for (var d = 0; d < dots.length; d++) {
+      dots[d].setAttribute('aria-current', d === cursor[dim] ? 'true' : 'false');
+    }
+    fill = dots[cursor[dim]] ? dots[cursor[dim]].firstChild.firstChild : null;
+    if (fill) fill.style.width = '0%';
+  }
+
+  function lensTick(dt) {
+    if (lensHold) return;
+    lensT += dt;
+    if (lensT >= DWELL) {
+      lensT = 0;
+      cursor[dim] = (cursor[dim] + 1) % LENS[dim].length;
+      paintLens(true);
+      return;
+    }
+    if (fill) fill.style.width = (lensT / DWELL * 100).toFixed(1) + '%';
+  }
+
+  elLensCard.addEventListener('pointerenter', function () { lensHold = true; });
+  elLensCard.addEventListener('pointerleave', function () { lensHold = false; });
+
   function setDim(next) {
     if (next < 0) next = 0;
     if (next > MAXD) next = MAXD;
@@ -568,10 +843,14 @@
       buttons[j].setAttribute('aria-selected', j === dim ? 'true' : 'false');
     }
     for (j = 0; j < swaps.length; j++) swaps[j].classList.add('out');
+    elLensCard.classList.add('out');
     clearTimeout(hudTimer);
     hudTimer = setTimeout(function () {
       writeHud();
+      lensT = 0;
+      paintLens(true);
       for (var q = 0; q < swaps.length; q++) swaps[q].classList.remove('out');
+      elLensCard.classList.remove('out');
     }, 170);
   }
 
@@ -588,6 +867,7 @@
     buttons.push(b);
   });
   writeHud();
+  paintLens(true);
 
   window.addEventListener('keydown', function (ev) {
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
