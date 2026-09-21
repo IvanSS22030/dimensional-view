@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--ARTIFACT-START-->
+<title>Dimensional View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@200;300;400&display=swap">
+<style>
+  :root {
+    padding: 0;
+    color-scheme: dark;
+    --ink: #ffffff;
+    --ink-2: rgba(255, 255, 255, .46);
+    --ink-3: rgba(255, 255, 255, .30);
+    --ink-4: rgba(255, 255, 255, .14);
+    --void: #000000;
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: var(--void);
+    color: var(--ink);
+    overflow: hidden;
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    cursor: grab;
+    touch-action: none;
+  }
+  #stage.dragging { cursor: grabbing; }
+  #stage canvas { display: block; }
+
+  #hud {
+    position: fixed;
+    top: calc(28px + env(safe-area-inset-top, 0px));
+    left: 28px;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    width: min(58vw, 340px);
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  #name {
+    margin: 0;
+    font-size: clamp(32px, 6.5vw, 54px);
+    font-weight: 200;
+    letter-spacing: -.025em;
+    line-height: .95;
+    text-wrap: balance;
+  }
+  #rule {
+    height: 1px;
+    background: var(--ink-4);
+    transform-origin: left center;
+    transform: scaleX(0);
+    animation: wipe .9s cubic-bezier(.22, 1, .36, 1) forwards;
+  }
+  @keyframes wipe { to { transform: scaleX(1); } }
+
+  #axis {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  #desc {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 300;
+    line-height: 1.6;
+    color: var(--ink-3);
+  }
+  /* Cada palabra entra por separado, con un retardo escalonado. */
+  .w {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(.45em);
+    animation: rise .6s cubic-bezier(.22, 1, .36, 1) forwards;
+  }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+
+  .stats {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 3px;
+  }
+  #meta, #schlafli {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: .02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+  }
+  #schlafli { color: var(--ink-2); }
+  .swap { transition: opacity .26s ease, transform .26s ease; }
+  .swap.out { opacity: 0; transform: translateY(7px); }
+
+  #dial {
+    position: fixed;
+    left: 50%;
+    bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    display: flex;
+    gap: 2px;
+    padding: 5px;
+    border: 1px solid var(--ink-4);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .025);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  #dial button {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 48px;
+    height: 34px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink-2);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .08em;
+    cursor: pointer;
+    transition: background .45s cubic-bezier(.4, 0, .2, 1), color .45s cubic-bezier(.4, 0, .2, 1);
+  }
+  #dial button:hover { color: var(--ink); background: rgba(255, 255, 255, .07); }
+  #dial button[aria-selected="true"] { background: var(--ink); color: var(--void); }
+  #dial button:focus-visible { outline: 1px solid rgba(255, 255, 255, .7); outline-offset: 3px; }
+
+  #hint {
+    position: fixed;
+    right: 28px;
+    top: calc(32px + env(safe-area-inset-top, 0px));
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.85;
+    letter-spacing: .06em;
+    color: rgba(255, 255, 255, .22);
+    text-align: right;
+    pointer-events: none;
+  }
+
+  #fallback {
+    position: fixed;
+    inset: 0;
+    display: none;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .06em;
+    color: var(--ink-2);
+  }
+
+  @media (max-width: 720px) {
+    #hud { top: calc(20px + env(safe-area-inset-top, 0px)); left: 20px; width: min(74vw, 320px); gap: 11px; }
+    #desc { font-size: 12.5px; }
+    #hint { display: none; }
+    #dial button { min-width: 42px; padding: 0 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .swap { transition: none; }
+    #dial button { transition: none; }
+    .w { animation: none; opacity: 1; transform: none; }
+    #rule { animation: none; transform: none; }
+  }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<header id="hud">
+  <div class="eyebrow swap" id="index">Dimensión 01</div>
+  <h1 class="swap" id="name">Segmento</h1>
+  <div id="rule"></div>
+  <p id="axis">Eje 1 · Longitud</p>
+  <p id="desc">Nace la primera dirección.</p>
+  <div class="stats">
+    <p class="swap" id="meta">2 vértices · 1 arista · 0 planos de rotación</p>
+    <p class="swap" id="schlafli">{ }</p>
+  </div>
+</header>
+
+<p id="hint">← → cambia de dimensión<br>arrastra para orbitar</p>
+
+<nav id="dial" role="tablist" aria-label="Dimensión"></nav>
+
+<div id="fallback">No se pudo cargar three.js. Revisa tu conexión.</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  if (typeof THREE === 'undefined') {
+    document.getElementById('fallback').style.display = 'grid';
+    return;
+  }
+
+  var TAU = Math.PI * 2;
+  var MAXD = 5;
+  var NV = 1 << MAXD;          // 32 vértices del penteracto
+  var PROJ5 = 4.2;             // distancia del ojo en 5D
+  var PROJ4 = 3.6;             // distancia del ojo en 4D
+  var BASE = 1.35;             // escala en unidades de mundo
+  var FRAME_R = 2.7;           // radio visible que encuadra la cámara
+
+  // Cada dimensión añade exactamente un eje perpendicular a todos los
+  // anteriores; `axis` nombra ese eje nuevo, no el conjunto.
+  var DIMS = [
+    {
+      name: 'Punto', v: 1, e: 0, p: 0, s: '—',
+      axis: 'Ningún eje',
+      desc: 'Una posición y nada más. No hay dirección en la que moverse ni longitud que medir.'
+    },
+    {
+      name: 'Segmento', v: 2, e: 1, p: 0, s: '{ }',
+      axis: 'Eje 1 · Longitud',
+      desc: 'Nace la primera dirección. Todo lo que existe aquí se describe con un solo número: qué tan lejos.'
+    },
+    {
+      name: 'Cuadrado', v: 4, e: 4, p: 1, s: '{4}',
+      axis: 'Eje 2 · Anchura',
+      desc: 'Un segundo eje perpendicular abre el plano. Con él aparecen la superficie y la primera rotación posible.'
+    },
+    {
+      name: 'Cubo', v: 8, e: 12, p: 3, s: '{4,3}',
+      axis: 'Eje 3 · Profundidad',
+      desc: 'El tercer eje levanta el volumen. Es la dimensión que habitas y la última que tu vista alcanza directamente.'
+    },
+    {
+      name: 'Teseracto', v: 16, e: 32, p: 6, s: '{4,3,3}',
+      axis: 'Eje 4 · Ana y kata',
+      desc: 'Una dirección perpendicular a las tres anteriores a la vez. No tiene nombre cotidiano: Hinton la bautizó ana y kata. Lo que ves es su sombra proyectada en 3D.'
+    },
+    {
+      name: 'Penteracto', v: 32, e: 80, p: 10, s: '{4,3,3,3}',
+      axis: 'Eje 5 · Sin nombre',
+      desc: 'Un quinto eje perpendicular a todos los demás. Atraviesa dos proyecciones antes de llegar a la pantalla; por eso la figura parece plegarse sobre sí misma.'
+    }
+  ];
+  var SCALE = [1.00, 1.18, 1.08, 1.00, 0.70, 0.46];
+
+  // ---- topología del hipercubo -------------------------------------------
+  var sgn = new Float32Array(NV * MAXD);
+  var i, k;
+  for (i = 0; i < NV; i++) {
+    for (k = 0; k < MAXD; k++) sgn[i * MAXD + k] = (i >> k & 1) ? 1 : -1;
+  }
+
+  var edges = [];              // [vértice bajo, vértice alto, eje]
+  for (i = 0; i < NV; i++) {
+    for (k = 0; k < MAXD; k++) {
+      if (!(i >> k & 1)) edges.push(i, i | (1 << k), k);
+    }
+  }
+  var NE = edges.length / 3;   // 80
+
+  // Un plano de rotación por cada par de ejes: C(5,2) = 10.
+  var planes = [
+    [0, 1, 0.26], [0, 2, 0.17], [1, 2, 0.21],
+    [0, 3, 0.31], [1, 3, 0.23], [2, 3, 0.37],
+    [0, 4, 0.29], [1, 4, 0.41], [2, 4, 0.19], [3, 4, 0.33]
+  ];
+  var theta = new Float64Array(planes.length);
+
+  // ---- escena -------------------------------------------------------------
+  var stage = document.getElementById('stage');
+  var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x000000, 1);
+  stage.appendChild(renderer.domElement);
+
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  var group = new THREE.Group();
+  scene.add(group);
+
+  var linePos = new Float32Array(NE * 6);
+  var lineCol = new Float32Array(NE * 6);
+  var lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3).setUsage(THREE.DynamicDrawUsage));
+  lineGeo.setAttribute('color', new THREE.BufferAttribute(lineCol, 3).setUsage(THREE.DynamicDrawUsage));
+  // Mezcla aditiva, no normal: en las dimensiones bajas muchas aristas quedan
+  // superpuestas y apagadas a negro. Con mezcla normal esas copias opacas se
+  // pintaban encima de las aristas vivas y borraban la figura; sumando, el
+  // negro no aporta nada y sólo sobrevive lo que de verdad existe.
+  var lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthTest: false,
+    depthWrite: false
+  }));
+  lines.renderOrder = 1;
+  lines.frustumCulled = false;   // la esfera envolvente se calcula una sola vez
+  group.add(lines);
+
+  function dotTexture() {
+    var s = 64;
+    var cv = document.createElement('canvas');
+    cv.width = cv.height = s;
+    var g = cv.getContext('2d');
+    var grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    grd.addColorStop(0.00, 'rgba(255,255,255,1)');
+    grd.addColorStop(0.22, 'rgba(255,255,255,0.72)');
+    grd.addColorStop(0.55, 'rgba(255,255,255,0.14)');
+    grd.addColorStop(1.00, 'rgba(255,255,255,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, s, s);
+    return new THREE.CanvasTexture(cv);
+  }
+
+  var ptPos = new Float32Array(NV * 3);
+  var ptCol = new Float32Array(NV * 3);
+  var ptGeo = new THREE.BufferGeometry();
+  ptGeo.setAttribute('position', new THREE.BufferAttribute(ptPos, 3).setUsage(THREE.DynamicDrawUsage));
+  ptGeo.setAttribute('color', new THREE.BufferAttribute(ptCol, 3).setUsage(THREE.DynamicDrawUsage));
+  var points = new THREE.Points(ptGeo, new THREE.PointsMaterial({
+    size: 0.125,
+    map: dotTexture(),
+    vertexColors: true,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthTest: false,
+    depthWrite: false,
+    sizeAttenuation: true
+  }));
+  points.renderOrder = 2;
+  points.frustumCulled = false;
+  group.add(points);
+
+  function resize() {
+    var w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    var t = Math.tan(camera.fov * Math.PI / 360);
+    camera.position.z = Math.max(FRAME_R / t, FRAME_R / (t * camera.aspect));
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---- estado -------------------------------------------------------------
+  var dim = 1;
+  var ext = new Float64Array(MAXD);   // extensión cruda de cada eje, 0..1
+  var se = new Float64Array(MAXD);    // extensión suavizada
+  var uw = new Float64Array(MAXD);    // peso de brillo por eje
+  var uniq = new Float64Array(NV);
+  var c = new Float64Array(MAXD);
+  var proj = new Float32Array(NV * 3);
+  var depth = new Float64Array(NV);
+  var shade = new Float64Array(NV);
+  var scale = SCALE[dim] * BASE;
+
+  var spinX = 0.30, spinY = 0.0, velX = 0, velY = 0;
+  var dragging = false, lastX = 0, lastY = 0;
+
+  function step(dt) {
+    var a, p, n;
+    var ease = 1 - Math.exp(-dt * 5.2);
+
+    // 1. cada eje se abre o se colapsa
+    for (a = 0; a < MAXD; a++) {
+      ext[a] += ((a < dim ? 1 : 0) - ext[a]) * ease;
+      var x = ext[a] < 0 ? 0 : (ext[a] > 1 ? 1 : ext[a]);
+      se[a] = x * x * (3 - 2 * x);
+      uw[a] = Math.pow(se[a], 0.45);
+    }
+
+    // 2. un vértice sólo existe si están abiertos los ejes que lo separan del
+    //    origen: así las copias apiladas de las dimensiones colapsadas se
+    //    apagan en vez de acumular brillo.
+    for (n = 0; n < NV; n++) {
+      var m = 1;
+      for (a = 0; a < MAXD; a++) if (n >> a & 1) m *= uw[a];
+      uniq[n] = m;
+    }
+
+    // 3. cada plano gira sólo mientras sus dos ejes existen, y al colapsar
+    //    regresa al múltiplo de 2π más cercano: la figura aterriza plana.
+    for (p = 0; p < planes.length; p++) {
+      var w = se[planes[p][0]] * se[planes[p][1]];
+      theta[p] += dt * planes[p][2] * w;
+      if (w < 0.999) {
+        var snap = Math.round(theta[p] / TAU) * TAU;
+        theta[p] += (snap - theta[p]) * (1 - Math.exp(-dt * 9 * (1 - w)));
+      }
+    }
+
+    scale += (SCALE[dim] * BASE - scale) * ease;
+
+    // 4. rotar en 5D y proyectar 5D -> 4D -> 3D
+    var tmin = Infinity, tmax = -Infinity;
+    for (n = 0; n < NV; n++) {
+      for (a = 0; a < MAXD; a++) c[a] = sgn[n * MAXD + a] * se[a];
+
+      for (p = 0; p < planes.length; p++) {
+        var th = theta[p];
+        if (th === 0) continue;
+        var ia = planes[p][0], ib = planes[p][1];
+        var cs = Math.cos(th), sn = Math.sin(th);
+        var va = c[ia], vb = c[ib];
+        c[ia] = va * cs - vb * sn;
+        c[ib] = va * sn + vb * cs;
+      }
+
+      var s5 = PROJ5 / Math.max(PROJ5 - c[4], 0.9);
+      var w4 = c[3] * s5;
+      var s4 = PROJ4 / Math.max(PROJ4 - w4, 0.9);
+      var f = s5 * s4;
+      depth[n] = f;
+      if (f < tmin) tmin = f;
+      if (f > tmax) tmax = f;
+
+      var g = f * scale;
+      proj[n * 3] = c[0] * g;
+      proj[n * 3 + 1] = c[1] * g;
+      proj[n * 3 + 2] = c[2] * g;
+    }
+
+    // 5. lo que queda más lejos en la dimensión extra se apaga
+    var span = tmax - tmin;
+    for (n = 0; n < NV; n++) {
+      shade[n] = span < 1e-4 ? 1 : 0.28 + 0.72 * ((depth[n] - tmin) / span);
+    }
+
+    for (var ei = 0; ei < NE; ei++) {
+      var lo = edges[ei * 3], hi = edges[ei * 3 + 1], ax = edges[ei * 3 + 2];
+      var o = ei * 6;
+      linePos[o] = proj[lo * 3];
+      linePos[o + 1] = proj[lo * 3 + 1];
+      linePos[o + 2] = proj[lo * 3 + 2];
+      linePos[o + 3] = proj[hi * 3];
+      linePos[o + 4] = proj[hi * 3 + 1];
+      linePos[o + 5] = proj[hi * 3 + 2];
+
+      var base = uniq[lo] * Math.min(1, se[ax] / 0.05) * 0.95;
+      var ca = base * shade[lo], cb = base * shade[hi];
+      lineCol[o] = lineCol[o + 1] = lineCol[o + 2] = ca;
+      lineCol[o + 3] = lineCol[o + 4] = lineCol[o + 5] = cb;
+    }
+
+    for (n = 0; n < NV; n++) {
+      ptPos[n * 3] = proj[n * 3];
+      ptPos[n * 3 + 1] = proj[n * 3 + 1];
+      ptPos[n * 3 + 2] = proj[n * 3 + 2];
+      var b = uniq[n] * shade[n] * 0.85;
+      ptCol[n * 3] = ptCol[n * 3 + 1] = ptCol[n * 3 + 2] = b;
+    }
+
+    lineGeo.attributes.position.needsUpdate = true;
+    lineGeo.attributes.color.needsUpdate = true;
+    ptGeo.attributes.position.needsUpdate = true;
+    ptGeo.attributes.color.needsUpdate = true;
+
+    if (!dragging) {
+      spinY += velY + 0.085 * dt;
+      spinX += velX;
+      velY *= 0.93;
+      velX *= 0.93;
+    }
+    if (spinX > 1.25) spinX = 1.25;
+    if (spinX < -1.25) spinX = -1.25;
+    group.rotation.set(spinX, spinY, 0);
+  }
+
+  var last = performance.now();
+  function tick(now) {
+    var dt = (now - last) / 1000;
+    last = now;
+    if (dt > 0.05) dt = 0.05;
+    step(dt);
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // ---- interfaz -----------------------------------------------------------
+  var elIndex = document.getElementById('index');
+  var elName = document.getElementById('name');
+  var elRule = document.getElementById('rule');
+  var elAxis = document.getElementById('axis');
+  var elDesc = document.getElementById('desc');
+  var elMeta = document.getElementById('meta');
+  var elSchlafli = document.getElementById('schlafli');
+  var swaps = [elIndex, elName, elMeta, elSchlafli];
+  var dial = document.getElementById('dial');
+  var buttons = [];
+  var hudTimer = null;
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+  // Reparte el texto en palabras y las hace entrar en cascada.
+  function reveal(el, text, delay) {
+    if (still) { el.textContent = text; return; }
+    el.textContent = '';
+    var words = text.split(' ');
+    for (var w = 0; w < words.length; w++) {
+      var s = document.createElement('span');
+      s.className = 'w';
+      s.textContent = words[w];
+      s.style.animationDelay = (delay + w * 15) + 'ms';
+      el.appendChild(s);
+      if (w < words.length - 1) el.appendChild(document.createTextNode(' '));
+    }
+  }
+
+  function writeHud() {
+    var d = DIMS[dim];
+    elIndex.textContent = 'Dimensión 0' + dim;
+    elName.textContent = d.name;
+    elMeta.textContent = plural(d.v, 'vértice', 'vértices') + ' · ' +
+                         plural(d.e, 'arista', 'aristas') + ' · ' +
+                         plural(d.p, 'plano de rotación', 'planos de rotación');
+    elSchlafli.textContent = d.s;
+
+    if (!still) {
+      elRule.style.animation = 'none';
+      void elRule.offsetWidth;          // fuerza el reinicio de la animación
+      elRule.style.animation = '';
+    }
+    reveal(elAxis, d.axis, 60);
+    reveal(elDesc, d.desc, 150);
+  }
+
+  function setDim(next) {
+    if (next < 0) next = 0;
+    if (next > MAXD) next = MAXD;
+    if (next === dim) return;
+    dim = next;
+
+    var j;
+    for (j = 0; j < buttons.length; j++) {
+      buttons[j].setAttribute('aria-selected', j === dim ? 'true' : 'false');
+    }
+    for (j = 0; j < swaps.length; j++) swaps[j].classList.add('out');
+    clearTimeout(hudTimer);
+    hudTimer = setTimeout(function () {
+      writeHud();
+      for (var q = 0; q < swaps.length; q++) swaps[q].classList.remove('out');
+    }, 170);
+  }
+
+  DIMS.forEach(function (d, idx) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'dim-' + idx;
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', idx === dim ? 'true' : 'false');
+    b.title = d.name;
+    b.textContent = idx + 'D';
+    b.addEventListener('click', function () { setDim(idx); });
+    dial.appendChild(b);
+    buttons.push(b);
+  });
+  writeHud();
+
+  window.addEventListener('keydown', function (ev) {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    if (ev.key === 'ArrowRight' || ev.key === 'ArrowUp') { setDim(dim + 1); ev.preventDefault(); }
+    else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowDown') { setDim(dim - 1); ev.preventDefault(); }
+    else if (ev.key >= '0' && ev.key <= '5') { setDim(parseInt(ev.key, 10)); }
+  });
+
+  stage.addEventListener('pointerdown', function (e) {
+    dragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    stage.classList.add('dragging');
+    if (stage.setPointerCapture) stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    velY = (e.clientX - lastX) * 0.005;
+    velX = (e.clientY - lastY) * 0.005;
+    spinY += velY;
+    spinX += velX;
+    if (spinX > 1.25) spinX = 1.25;
+    if (spinX < -1.25) spinX = -1.25;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  function release() { dragging = false; stage.classList.remove('dragging'); }
+  stage.addEventListener('pointerup', release);
+  stage.addEventListener('pointercancel', release);
+  stage.addEventListener('pointerleave', release);
+})();
+</script>
+<!--ARTIFACT-END-->
+</body>
+</html>
