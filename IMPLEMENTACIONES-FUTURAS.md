@@ -28,8 +28,9 @@ La mejor adición posible para el objetivo fijado. Razón: hoy el panel derecho
 afirma *"ninguna habitación lo encierra"* mientras la figura solo gira. Esta demo
 ataca exactamente ese hueco, es interactiva y enseña el concepto raíz.
 
-Que la barra siga avanzando mientras la pelota **se niega a moverse** es la
-lección entera: esa resistencia física enseña más que las 33 fichas juntas.
+Que la pelota **se niegue a salir** por mucho que inclines la jaula es la
+lección entera: esa resistencia física enseña más que las 33 fichas juntas. Y
+tiene que ser resistencia de verdad, no una animación que se detiene sola.
 
 La clave del diseño: **no cambia el objeto, cambia la barrera.**
 
@@ -56,9 +57,25 @@ Esa es la diferencia entre que la demo enseñe o que desprestigie a la página.
 
 **Cómo se resolvió:** las tres cosas a la vez — medidor del eje oculto con la
 coordenada numérica, la pelota se vuelve fantasma al salir del espacio, y el
-estado dice *FUERA DE TU ESPACIO* en el momento exacto. Además las colisiones
-son reales: la caja bloquea solo mientras `|w| < radio`, así que el escape no
-está guionizado, ocurre porque el eje extra existe.
+estado dice *FUERA DE TU ESPACIO* en el momento exacto. A eso se suma el corte:
+lo que la pelota deja en tu espacio es un aro que se encoge hasta desaparecer.
+
+### Segunda versión: la pelota como cuerpo
+
+La primera versión recorría un camino grabado y una barra medía el avance. Se
+veía bien y no enseñaba: el espectador miraba una animación, no un experimento.
+Ahora la pelota es un cuerpo con posición y velocidad en cinco ejes, la jaula es
+un conjunto de restricciones, y la gravedad apunta siempre hacia abajo **en la
+pantalla**. Girar la figura con el ratón es inclinar la bandeja: la pelota rueda,
+rebota, se apoya y se queda quieta donde la dejes. Sacudirla la lanza de verdad,
+porque el marco que gira aporta Coriolis, centrífuga y Euler.
+
+Lo que sostiene la lección es una sola regla: **cada pieza de la jaula es un
+objeto de tu espacio, sin grosor en el cuarto ni el quinto eje**. La huella que
+la pelota deja en tu espacio es la sección de una esfera de cinco dimensiones,
+de radio `sqrt(r² − w² − v²)`, y se encoge hasta cero al apartarse por ana. Una
+pared que no toca nada no detiene nada. Nadie escribió la fuga: en 0D–3D la
+geometría no la permite y en 4D–5D no la puede impedir.
 
 ---
 

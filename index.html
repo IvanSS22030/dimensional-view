@@ -292,16 +292,52 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 14px;
+    gap: 12px;
     font-family: var(--mono);
     font-size: 10px;
-    letter-spacing: .18em;
+    letter-spacing: .14em;
     text-transform: uppercase;
     color: var(--ink-2);
   }
-  #escState { color: var(--ink); transition: color .3s ease; }
-  #escState.blocked { color: var(--ink); }
-  #escRange {
+  #escHow { flex: 1; }
+  #escReset {
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: var(--ink-3);
+    cursor: pointer;
+    transition: color .3s ease;
+  }
+  #escReset:hover { color: var(--ink); }
+  #escReset:focus-visible { outline: 1px solid rgba(255, 255, 255, .6); outline-offset: 3px; }
+  #escState {
+    min-width: 142px;             /* «Fuera de tu espacio» es el más largo */
+    text-align: right;
+    color: var(--ink-2);
+    transition: color .3s ease;
+  }
+  #escState.on { color: var(--ink); }
+
+  /* los dos mandos que empujan la pelota fuera de tu espacio */
+  .tilt {
+    display: grid;
+    grid-template-columns: 76px 1fr;
+    align-items: center;
+    gap: 10px;
+  }
+  .tilt label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .tilt input {
     -webkit-appearance: none;
     appearance: none;
     width: 100%;
@@ -310,11 +346,11 @@
     background: transparent;
     cursor: ew-resize;
   }
-  #escRange::-webkit-slider-runnable-track {
+  .tilt input::-webkit-slider-runnable-track {
     height: 1px;
     background: rgba(255, 255, 255, .22);
   }
-  #escRange::-webkit-slider-thumb {
+  .tilt input::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     width: 11px;
@@ -324,15 +360,15 @@
     border-radius: 50%;
     background: var(--ink);
   }
-  #escRange::-moz-range-track { height: 1px; background: rgba(255, 255, 255, .22); }
-  #escRange::-moz-range-thumb {
+  .tilt input::-moz-range-track { height: 1px; background: rgba(255, 255, 255, .22); }
+  .tilt input::-moz-range-thumb {
     width: 11px;
     height: 11px;
     border: 0;
     border-radius: 50%;
     background: var(--ink);
   }
-  #escRange:focus-visible { outline: 1px solid rgba(255, 255, 255, .6); outline-offset: 4px; }
+  .tilt input:focus-visible { outline: 1px solid rgba(255, 255, 255, .6); outline-offset: 4px; }
 
   /* conmutador de modo, arriba al centro */
   #mode {
@@ -455,6 +491,8 @@
     #lensTitle, #lensBody, #escJail, #escOut { min-height: 0; }
     #escPanel { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
     #scrub { width: calc(100vw - 40px); }
+    #escHow { display: none; }
+    #escState { min-width: 0; }
     #hint { display: none; }
     #hud { width: min(64vw, 300px); }
   }
@@ -530,10 +568,18 @@
 
 <div id="scrub" hidden>
   <div class="scrub-head">
-    <label for="escRange">Intento de escape</label>
+    <span id="escHow">Arrastra la jaula para inclinarla</span>
+    <button type="button" id="escReset">Soltar</button>
     <span id="escState">Listo</span>
   </div>
-  <input type="range" id="escRange" min="0" max="1000" value="0" step="1" aria-label="Avance del intento de escape">
+  <div class="tilt" id="tiltRowW" hidden>
+    <label for="tiltW">Ana · kata</label>
+    <input type="range" id="tiltW" min="-100" max="100" value="0" step="1" aria-label="Inclinar la gravedad hacia el cuarto eje">
+  </div>
+  <div class="tilt" id="tiltRowV" hidden>
+    <label for="tiltV">Quinto eje</label>
+    <input type="range" id="tiltV" min="-100" max="100" value="0" step="1" aria-label="Inclinar la gravedad hacia el quinto eje">
+  </div>
 </div>
 
 <p id="hint">← → cambia de dimensión<br>arrastra para orbitar<br>el panel avanza solo</p>
@@ -912,8 +958,13 @@
         velX *= 0.93;
       }
     }
-    if (spinX > 1.25) spinX = 1.25;
-    if (spinX < -1.25) spinX = -1.25;
+    // En el escape puedes volcar la jaula casi del todo: es lo que te deja
+    // apuntar la gravedad hacia donde quieras. El modo figura sigue acotado.
+    var lim = escMode ? 2.9 : 1.25;
+    if (spinX > lim || spinX < -lim) {
+      var t = spinX > lim ? lim : -lim;
+      spinX += (t - spinX) * (1 - Math.exp(-dt * 7));
+    }
     group.rotation.set(spinX, spinY, 0);
     escGroup.rotation.set(spinX, spinY, 0);
   }
@@ -923,58 +974,74 @@
     var dt = (now - last) / 1000;
     last = now;
     if (dt > 0.05) dt = 0.05;
+    // la órbita va primero: la física lee la orientación que el ratón acaba
+    // de dejar, sin un cuadro de retraso
+    orbit(dt);
     if (escMode) {
       escStep(dt);
     } else {
       step(dt);
       lensTick(dt);
     }
-    orbit(dt);
     renderer.render(scene, camera);
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
 
-  // ---- modo escape: una pelota y una jaula que sube de nivel --------------
-  // La jaula no cambia de forma por capricho: cada dimensión añade la pared
-  // que todavía te retiene y deja atrás la que ya sabes esquivar. Las
-  // colisiones son reales, no guion: la caja solo bloquea mientras la pelota
-  // siga dentro de tu espacio (|w| y |v| menores que su radio).
-  var BALL_R = 0.13, OBST_R = 0.17, RING_R = 0.62, BOX_H = 0.95;
-  var ESC_SCALE = 1.12, ESC_OFF = -0.26, ESEG = 360;
+  // ---- modo escape: una pelota con física dentro de una jaula --------------
+  // Aquí no hay animación guionizada. La pelota es un cuerpo con posición y
+  // velocidad en cinco ejes; la jaula es un conjunto de restricciones; y la
+  // gravedad apunta siempre hacia abajo EN LA PANTALLA, no en la figura. Por
+  // eso al girar la jaula con el ratón cambias hacia dónde cae: es el gesto
+  // de inclinar una bandeja con una canica encima.
+  //
+  // Lo que lo convierte en lección y no en juguete: cada pieza de la jaula es
+  // un objeto de TU espacio, sin grosor en el cuarto ni en el quinto eje. La
+  // huella que la pelota deja en tu espacio es la sección de una esfera de
+  // cinco dimensiones, de radio sqrt(r² − w² − v²), y se encoge hasta cero en
+  // cuanto se aparta por ana. Una pared que no toca nada no detiene nada: ahí
+  // está la fuga, y no hace falta escribirla a mano.
+  var BALL_R = 0.12, OBST_R = 0.15, RING_R = 0.55, RING_T = 0.028, BOX_H = 0.70;
+  var WORLD_R = 1.34;            // el borde del universo, en tus tres ejes
+  var EXIT_X = 1.05;             // la marca de «afuera»
+  var ESC_SCALE = 1.12, ESC_OFF = -0.26, ESEG = 460;
+  var EP5 = 8.0, EP4 = 7.2;      // ojos más lejanos que en el modo figura:
+                                 // así salir por ana no dispara el tamaño
+  var GRAV = 2.4;                // unidades/s²
+  var REST = 0.40;               // rebote contra las paredes
+  var MU = 2.6;                  // rozamiento tangencial en el contacto, 1/s
+  var AIR = 0.22;                // rozamiento del aire, 1/s
+  // Tu espacio es un valle en los ejes extra: salir de él cuesta, y al soltar
+  // el mando la pelota vuelve a caer dentro. Es una licencia deliberada; sin
+  // ella se quedaría flotando fuera de tu mundo para siempre y no habría
+  // manera de comprobar que reapareció al otro lado de la pared.
+  var WELL_K = 2.6, WELL_D = 1.4, TILT_MAX = 1.2;
+  var TRAIL = 46;
 
   var ESC = [
     { jail: 'Ninguna jaula, y aun así no hay salida',
-      out: 'No hace falta encerrarla: no existe ninguna dirección en la que moverse. La barra avanza y la pelota se queda exactamente donde está.' },
+      out: 'No hace falta encerrarla. Sin ningún eje no existe el movimiento: inclina cuanto quieras, que no hay dirección hacia la que caer.' },
     { jail: 'Otra pelota en la recta',
-      out: 'La única forma de llegar al otro lado sería atravesarla. La barra sigue subiendo; la pelota ya no.' },
+      out: 'Inclina la recta y la pelota rueda cuesta abajo. Al topar con la otra se acabó el viaje: para seguir tendría que atravesarla.' },
     { jail: 'Un círculo cerrado',
-      out: 'Con dos ejes la rodea sin tocarla: el obstáculo que era absoluto dejó de serlo. Pero el círculo cerrado sigue siendo una pared.' },
+      out: 'Con dos ejes ya rodea el obstáculo sin tocarlo: lo que era absoluto dejó de serlo. Pero inclines hacia donde inclines, el aro la devuelve.' },
     { jail: 'Una caja cerrada',
-      out: 'El tercer eje la levanta por encima del círculo, que ahora es solo una raya en el suelo. La caja, en cambio, la detiene.' },
+      out: 'El tercer eje la levanta por encima del aro, que ahora es solo una raya en el suelo. La caja, en cambio, la sostiene por los seis lados.' },
     { jail: 'Ya nada de tres dimensiones',
-      out: 'Sale por ana, cruza por fuera de tu espacio y vuelve del otro lado de la pared. Nunca tocó la caja: míralo en el medidor.' },
+      out: 'Empújala hacia ana con el mando: al salir de tu espacio la caja deja de tocarla. Inclina la jaula mientras está fuera y suéltala del otro lado de la pared.' },
     { jail: 'Harían falta paredes de cuatro dimensiones',
-      out: 'No hay una puerta, hay un plano entero de puertas: se va por una combinación de los dos ejes extra a la vez.' }
+      out: 'Dos mandos, dos direcciones perpendiculares a todo lo que conoces. No hay una puerta que vigilar: hay un plano entero de puertas.' }
   ];
 
-  var PATHS = [
-    [[0, 0, 0, 0, 0]],
-    [[-0.85, 0, 0, 0, 0], [0.95, 0, 0, 0, 0]],
-    [[-0.40, -0.18, 0, 0, 0], [-0.34, -0.30, 0, 0, 0], [-0.15, -0.37, 0, 0, 0],
-     [0.10, -0.36, 0, 0, 0], [0.30, -0.26, 0, 0, 0], [0.42, -0.10, 0, 0, 0],
-     [0.60, 0, 0, 0, 0], [1.45, 0, 0, 0, 0]],
-    [[-0.40, -0.18, 0, 0, 0], [-0.34, -0.30, 0.05, 0, 0], [-0.15, -0.37, 0.18, 0, 0],
-     [0.10, -0.36, 0.30, 0, 0], [0.30, -0.26, 0.34, 0, 0], [0.42, -0.10, 0.34, 0, 0],
-     [0.75, 0, 0.34, 0, 0], [1.45, 0, 0.34, 0, 0]],
-    [[-0.40, -0.18, 0, 0, 0], [-0.34, -0.30, 0.05, 0, 0], [-0.15, -0.37, 0.18, 0, 0],
-     [0.10, -0.36, 0.30, 0, 0], [0.30, -0.26, 0.34, 0, 0], [0.45, -0.05, 0.34, 0.26, 0],
-     [0.55, 0, 0.30, 0.80, 0], [1.15, 0, 0.20, 0.80, 0], [1.45, 0, 0.10, 0.30, 0],
-     [1.62, 0, 0, 0, 0]],
-    [[-0.40, -0.18, 0, 0, 0], [-0.34, -0.30, 0.05, 0, 0], [-0.15, -0.37, 0.18, 0, 0],
-     [0.10, -0.36, 0.30, 0, 0], [0.30, -0.26, 0.34, 0, 0], [0.45, -0.05, 0.34, 0.19, 0.19],
-     [0.55, 0, 0.30, 0.57, 0.57], [1.15, 0, 0.20, 0.57, 0.57], [1.45, 0, 0.10, 0.22, 0.22],
-     [1.62, 0, 0, 0, 0]]
+  // Dónde se suelta la pelota en cada dimensión. Los ejes que todavía no
+  // existen se ignoran al soltarla.
+  var START = [
+    [0, 0, 0, 0, 0],
+    [-0.85, 0, 0, 0, 0],
+    [-0.10, 0.36, 0, 0, 0],
+    [-0.10, 0.36, 0.10, 0, 0],
+    [-0.10, 0.36, 0.10, 0, 0],
+    [-0.10, 0.36, 0.10, 0, 0]
   ];
 
   var escPos = new Float32Array(ESEG * 6);
@@ -1007,59 +1074,199 @@
   escGroup.visible = false;
   scene.add(escGroup);
 
-  var escMode = false, escT = 0, escJam = 1, escAuto = false;
+  // ---- estado del cuerpo ---------------------------------------------------
+  var escMode = false;
   var escUserRot = false, escAimX = 0.06, escAimY = 0;
-  var ballP = [0, 0, 0, 0, 0];
+  var bp = [0, 0, 0, 0, 0];      // posición de la pelota, cinco ejes
+  var bv = [0, 0, 0, 0, 0];      // su velocidad
+  var gA = [0, 0, 0, 0, 0];      // gravedad ya traducida a la jaula
+  var nrm = [0, 0, 0, 0, 0];     // normal del contacto que se está resolviendo
   var tmpA = [0, 0, 0, 0, 0], tmpB = [0, 0, 0, 0, 0], o3 = [0, 0, 0];
   var segN = 0;
+  var tiltW = 0, tiltV = 0;      // cuánto inclinas la gravedad fuera de tu espacio
+  var inBox = true;              // de qué lado de la caja está: dentro o fuera
+  var free = false, cageTouch = false, cageHit = 0;
+  var ctP = [0, 0, 0, 0, 0], ctN = [0, 0, 0];
+  var trailBuf = new Float32Array(TRAIL * 5), trailN = 0, trailHead = 0;
 
-  function pathAt(d, t, out) {
-    var wp = PATHS[d], n = wp.length, k;
-    if (n < 2) { for (k = 0; k < 5; k++) out[k] = 0; return; }
-    if (t < 0) t = 0;
-    if (t > 1) t = 1;
-    var f = t * (n - 1), i = Math.floor(f);
-    if (i > n - 2) i = n - 2;
-    var u = f - i, a = wp[i], b = wp[i + 1];
-    for (k = 0; k < 5; k++) out[k] = a[k] + (b[k] - a[k]) * u;
+  // La jaula gira porque el usuario la gira, así que desde el punto de vista
+  // de la pelota es un marco no inercial: hacen falta Coriolis, centrífuga y
+  // Euler para que sacudir la caja de verdad la lance.
+  var qPrev = new THREE.Quaternion(), qRel = new THREE.Quaternion(), qInv = new THREE.Quaternion();
+  var vDown = new THREE.Vector3();
+  var omg = [0, 0, 0], alp = [0, 0, 0];
+
+  function frameKin(dt) {
+    qInv.copy(escGroup.quaternion).conjugate();
+    // velocidad angular del marco en sus propias coordenadas: para giros
+    // pequeños, q ≈ (1, ω·dt/2), así que ω ≈ 2·vec(q)/dt.
+    qRel.copy(qPrev).conjugate().multiply(escGroup.quaternion);
+    var sg = (qRel.w < 0 ? -2 : 2) / dt;
+    var ox = qRel.x * sg, oy = qRel.y * sg, oz = qRel.z * sg;
+    var m = Math.sqrt(ox * ox + oy * oy + oz * oz);
+    if (m > 9) { var f = 9 / m; ox *= f; oy *= f; oz *= f; }
+    alp[0] = (ox - omg[0]) / dt;
+    alp[1] = (oy - omg[1]) / dt;
+    alp[2] = (oz - omg[2]) / dt;
+    var am = Math.sqrt(alp[0] * alp[0] + alp[1] * alp[1] + alp[2] * alp[2]);
+    if (am > 110) { var g = 110 / am; alp[0] *= g; alp[1] *= g; alp[2] *= g; }
+    omg[0] = ox; omg[1] = oy; omg[2] = oz;
+    qPrev.copy(escGroup.quaternion);
   }
 
-  function insideRing(p) { return Math.sqrt(p[0] * p[0] + p[1] * p[1]) < RING_R - BALL_R; }
-  function insideBox(p) {
-    return Math.max(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])) < BOX_H - BALL_R;
-  }
-  function inYourSpace(p) { return Math.abs(p[3]) < BALL_R && Math.abs(p[4]) < BALL_R; }
-  // El aro es una curva, no una superficie: solo detiene a quien siga
-  // pegado al plano. Por eso el tercer eje lo vuelve inofensivo.
-  function inPlane(p) { return Math.abs(p[2]) < BALL_R && inYourSpace(p); }
-
-  // Recorre el camino paso a paso y devuelve dónde se atasca de verdad.
-  function findJam(d) {
-    if (PATHS[d].length < 2) return 0;
-    var steps = 700, prevRing = false, prevBox = false, first = true, s;
-    for (s = 0; s <= steps; s++) {
-      pathAt(d, s / steps, tmpB);
-      if (d >= 1) {
-        var q = Math.sqrt(tmpB[0] * tmpB[0] + tmpB[1] * tmpB[1] + tmpB[2] * tmpB[2] +
-                          tmpB[3] * tmpB[3] + tmpB[4] * tmpB[4]);
-        if (q < OBST_R + BALL_R) return Math.max(0, (s - 1) / steps);
-      }
-      var ring = insideRing(tmpB), box = insideBox(tmpB);
-      if (!first) {
-        if (d >= 2 && ring !== prevRing && inPlane(tmpB)) return Math.max(0, (s - 1) / steps);
-        if (d >= 3 && box !== prevBox && inYourSpace(tmpB)) return Math.max(0, (s - 1) / steps);
-      }
-      prevRing = ring;
-      prevBox = box;
-      first = false;
+  // «Abajo» es abajo en la pantalla. Se traduce a las coordenadas de la jaula
+  // y luego se proyecta sobre los ejes que la dimensión actual sí tiene: por
+  // eso una recta casi horizontal apenas empuja, como una cuenta en un
+  // alambre. Los mandos extra inclinan esa gravedad fuera de tu espacio sin
+  // cambiar su intensidad.
+  function buildG() {
+    vDown.set(0, -1, 0).applyQuaternion(qInv);
+    var gx = vDown.x, gy = vDown.y, gz = vDown.z, gw = 0, gv = 0, c;
+    if (dim >= 4) {
+      c = Math.cos(tiltW); gw = Math.sin(tiltW);
+      gx *= c; gy *= c; gz *= c;
     }
-    return 1;
+    if (dim >= 5) {
+      c = Math.cos(tiltV); gv = Math.sin(tiltV);
+      gx *= c; gy *= c; gz *= c; gw *= c;
+    }
+    gA[0] = dim >= 1 ? gx * GRAV : 0;
+    gA[1] = dim >= 2 ? gy * GRAV : 0;
+    gA[2] = dim >= 3 ? gz * GRAV : 0;
+    gA[3] = dim >= 4 ? gw * GRAV : 0;
+    gA[4] = dim >= 5 ? gv * GRAV : 0;
   }
 
+  function setN(ax, s) {
+    nrm[0] = nrm[1] = nrm[2] = nrm[3] = nrm[4] = 0;
+    nrm[ax] = s;
+  }
+
+  // Separa, rebota y frena: un único contacto resuelto con la normal que ya
+  // esté cargada en `nrm`.
+  function hit(pen, keep, cage) {
+    var a, vn = 0;
+    for (a = 0; a < 5; a++) {
+      bp[a] += nrm[a] * pen;
+      vn += bv[a] * nrm[a];
+    }
+    if (vn < 0) {
+      for (a = 0; a < 5; a++) bv[a] = (bv[a] - nrm[a] * vn) * keep - nrm[a] * vn * REST;
+    }
+    if (cage) {
+      cageTouch = true;
+      var f = vn < 0 ? Math.min(1, -vn * 1.5) : 0;
+      if (f > cageHit) cageHit = f;
+      for (a = 0; a < 5; a++) ctP[a] = bp[a];
+      ctN[0] = nrm[0]; ctN[1] = nrm[1]; ctN[2] = nrm[2];
+    }
+  }
+
+  function escCollide(h) {
+    var keep = Math.exp(-MU * h);
+    var q = BALL_R * BALL_R - bp[3] * bp[3] - bp[4] * bp[4];
+    var rEff = q > 0 ? Math.sqrt(q) : 0;   // la huella en tu espacio
+    var a, d, lim;
+
+    // la caja: retiene desde dentro y estorba desde fuera. El lado solo se
+    // reevalúa cuando la pelota está del todo fuera de tu espacio, que es
+    // justo cuando puede cambiar de lado sin atravesar nada.
+    if (dim >= 3) {
+      if (rEff < 1e-4) {
+        inBox = Math.max(Math.abs(bp[0]), Math.abs(bp[1]), Math.abs(bp[2])) < BOX_H;
+      } else if (inBox) {
+        lim = BOX_H - rEff;
+        for (a = 0; a < 3; a++) {
+          if (bp[a] > lim) { setN(a, -1); hit(bp[a] - lim, keep, true); }
+          else if (bp[a] < -lim) { setN(a, 1); hit(-lim - bp[a], keep, true); }
+        }
+      } else {
+        var cx = Math.max(-BOX_H, Math.min(BOX_H, bp[0]));
+        var cy = Math.max(-BOX_H, Math.min(BOX_H, bp[1]));
+        var cz = Math.max(-BOX_H, Math.min(BOX_H, bp[2]));
+        var dx = bp[0] - cx, dy = bp[1] - cy, dz = bp[2] - cz;
+        d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (d < rEff && d > 1e-6) {
+          nrm[0] = dx / d; nrm[1] = dy / d; nrm[2] = dz / d; nrm[3] = nrm[4] = 0;
+          hit(rEff - d, keep, true);
+        }
+      }
+    }
+
+    // el aro es un tubo alrededor de una circunferencia: en el plano es una
+    // pared, y en cuanto hay tercer eje se le pasa por encima.
+    if (dim >= 2) {
+      var rxy = Math.sqrt(bp[0] * bp[0] + bp[1] * bp[1]);
+      var dr = rxy - RING_R, dzz = bp[2];
+      d = Math.sqrt(dr * dr + dzz * dzz);
+      lim = RING_T + rEff;
+      if (d < lim && d > 1e-6) {
+        var ux = rxy > 1e-6 ? bp[0] / rxy : 1, uy = rxy > 1e-6 ? bp[1] / rxy : 0;
+        nrm[0] = ux * dr / d; nrm[1] = uy * dr / d; nrm[2] = dzz / d; nrm[3] = nrm[4] = 0;
+        hit(lim - d, keep, dim === 2);
+      }
+    }
+
+    // la otra pelota
+    if (dim >= 1) {
+      d = Math.sqrt(bp[0] * bp[0] + bp[1] * bp[1] + bp[2] * bp[2]);
+      lim = OBST_R + rEff;
+      if (d < lim) {
+        if (d > 1e-6) {
+          nrm[0] = bp[0] / d; nrm[1] = bp[1] / d; nrm[2] = bp[2] / d; nrm[3] = nrm[4] = 0;
+        } else setN(0, 1);
+        hit(lim - d, keep, dim === 1);
+      }
+    }
+
+    // el borde del universo, que no es jaula: solo el final de tus tres ejes
+    d = Math.sqrt(bp[0] * bp[0] + bp[1] * bp[1] + bp[2] * bp[2]);
+    lim = WORLD_R - BALL_R;
+    if (d > lim && d > 1e-6) {
+      nrm[0] = -bp[0] / d; nrm[1] = -bp[1] / d; nrm[2] = -bp[2] / d; nrm[3] = nrm[4] = 0;
+      hit(d - lim, keep, false);
+    }
+
+    // tope duro de los ejes extra, por si la inclinación se va de las manos
+    for (a = 3; a < 5; a++) {
+      if (bp[a] > 1.25) { bp[a] = 1.25; if (bv[a] > 0) bv[a] *= -0.3; }
+      else if (bp[a] < -1.25) { bp[a] = -1.25; if (bv[a] < 0) bv[a] *= -0.3; }
+    }
+  }
+
+  function escSub(h) {
+    var a;
+    // términos del marco que gira, en las coordenadas de la jaula
+    var rx = bp[0] + ESC_OFF, ry = bp[1], rz = bp[2];
+    var wx = omg[0], wy = omg[1], wz = omg[2];
+    var w2 = wx * wx + wy * wy + wz * wz;
+    var wr = wx * rx + wy * ry + wz * rz;
+    var vx = bv[0], vy = bv[1], vz = bv[2];
+    var ax = gA[0] + (rx * w2 - wx * wr) - 2 * (wy * vz - wz * vy) - (alp[1] * rz - alp[2] * ry);
+    var ay = gA[1] + (ry * w2 - wy * wr) - 2 * (wz * vx - wx * vz) - (alp[2] * rx - alp[0] * rz);
+    var az = gA[2] + (rz * w2 - wz * wr) - 2 * (wx * vy - wy * vx) - (alp[0] * ry - alp[1] * rx);
+
+    bv[0] += ax * h;
+    bv[1] += ay * h;
+    bv[2] += az * h;
+    // los ejes extra no giran contigo: solo gravedad inclinada y el valle
+    bv[3] += (gA[3] - WELL_K * bp[3] - WELL_D * bv[3]) * h;
+    bv[4] += (gA[4] - WELL_K * bp[4] - WELL_D * bv[4]) * h;
+
+    var air = Math.exp(-AIR * h);
+    bv[0] *= air; bv[1] *= air; bv[2] *= air;
+
+    for (a = 0; a < 5; a++) bp[a] += bv[a] * h;
+    for (a = dim; a < 5; a++) { bp[a] = 0; bv[a] = 0; }   // ese eje no existe
+
+    escCollide(h);
+  }
+
+  // ---- dibujo --------------------------------------------------------------
   function proj5(c, out) {
-    var s5 = PROJ5 / Math.max(PROJ5 - c[4], 0.9);
+    var s5 = EP5 / Math.max(EP5 - c[4], 0.9);
     var w4 = c[3] * s5;
-    var s4 = PROJ4 / Math.max(PROJ4 - w4, 0.9);
+    var s4 = EP4 / Math.max(EP4 - w4, 0.9);
     var g = s5 * s4 * ESC_SCALE;
     out[0] = (c[0] + ESC_OFF) * g;
     out[1] = c[1] * g;
@@ -1109,118 +1316,179 @@
     }
   }
 
-  // Un aro pequeño en el punto exacto donde la pelota presiona. Sin esta
-  // marca, la cara invisible de la caja hace parecer que se detuvo en el aire.
-  function markRing(c, normal, r, bright) {
-    var parts = 16, i, j, a1, a2;
-    for (i = 0; i < parts; i++) {
-      a1 = i / parts * TAU;
-      a2 = (i + 1) / parts * TAU;
+  // Un aro perpendicular a una dirección cualquiera. Sirve para marcar el
+  // punto exacto donde la pelota presiona: sin esa marca, la cara invisible
+  // de la caja hace parecer que se detuvo en el aire.
+  function ringAt(c, nx, ny, nz, r, bright, parts) {
+    var ux, uy, uz;
+    var ax = Math.abs(nx), ay = Math.abs(ny), az = Math.abs(nz);
+    if (ax <= ay && ax <= az) { ux = 0; uy = -nz; uz = ny; }
+    else if (ay <= az) { ux = -nz; uy = 0; uz = nx; }
+    else { ux = -ny; uy = nx; uz = 0; }
+    var ul = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1;
+    ux /= ul; uy /= ul; uz /= ul;
+    var vx = ny * uz - nz * uy, vy = nz * ux - nx * uz, vz = nx * uy - ny * ux;
+    for (var i = 0; i < parts; i++) {
+      var a1 = i / parts * TAU, a2 = (i + 1) / parts * TAU, j;
+      var c1 = Math.cos(a1) * r, s1 = Math.sin(a1) * r;
+      var c2 = Math.cos(a2) * r, s2 = Math.sin(a2) * r;
       for (j = 0; j < 5; j++) { tmpA[j] = c[j]; tmpB[j] = c[j]; }
-      if (normal === 0) {
-        tmpA[1] += Math.cos(a1) * r; tmpA[2] += Math.sin(a1) * r;
-        tmpB[1] += Math.cos(a2) * r; tmpB[2] += Math.sin(a2) * r;
-      } else if (normal === 1) {
-        tmpA[0] += Math.cos(a1) * r; tmpA[2] += Math.sin(a1) * r;
-        tmpB[0] += Math.cos(a2) * r; tmpB[2] += Math.sin(a2) * r;
-      } else {
-        tmpA[0] += Math.cos(a1) * r; tmpA[1] += Math.sin(a1) * r;
-        tmpB[0] += Math.cos(a2) * r; tmpB[1] += Math.sin(a2) * r;
-      }
+      tmpA[0] += ux * c1 + vx * s1; tmpA[1] += uy * c1 + vy * s1; tmpA[2] += uz * c1 + vz * s1;
+      tmpB[0] += ux * c2 + vx * s2; tmpB[1] += uy * c2 + vy * s2; tmpB[2] += uz * c2 + vz * s2;
       seg(tmpA, tmpB, bright);
     }
   }
 
-  var contact = [0, 0, 0, 0, 0];
-
-  function contactMark(bright) {
-    var k;
-    for (k = 0; k < 5; k++) contact[k] = ballP[k];
-    if (dim >= 3) {                       // contra una cara de la caja
-      var ax = 0, m = Math.abs(ballP[0]);
-      if (Math.abs(ballP[1]) > m) { ax = 1; m = Math.abs(ballP[1]); }
-      if (Math.abs(ballP[2]) > m) { ax = 2; m = Math.abs(ballP[2]); }
-      contact[ax] = ballP[ax] > 0 ? BOX_H : -BOX_H;
-      markRing(contact, ax, BALL_R * 1.35, bright);
-    } else if (dim === 2) {               // contra el círculo
-      var q = Math.sqrt(ballP[0] * ballP[0] + ballP[1] * ballP[1]) || 1;
-      contact[0] = ballP[0] / q * RING_R;
-      contact[1] = ballP[1] / q * RING_R;
-      markRing(contact, 2, BALL_R * 1.35, bright);
+  function pushTrail() {
+    var k, o;
+    if (trailN > 0) {
+      o = ((trailHead - 1 + TRAIL) % TRAIL) * 5;
+      var d2 = 0;
+      for (k = 0; k < 5; k++) { var q = bp[k] - trailBuf[o + k]; d2 += q * q; }
+      if (d2 < 0.00035) return;        // parada: no acumules puntos encima
     }
+    o = trailHead * 5;
+    for (k = 0; k < 5; k++) trailBuf[o + k] = bp[k];
+    trailHead = (trailHead + 1) % TRAIL;
+    if (trailN < TRAIL) trailN++;
   }
 
-  function escStep(dt) {
-    if (escAuto) {
-      escT += dt / 3.6;
-      if (escT >= 1) { escT = 1; escAuto = false; }
-      elRange.value = Math.round(escT * 1000);
-    }
-
-    var t = Math.min(escT, escJam);
-    pathAt(dim, t, ballP);
-    var jammed = escJam < 1 && escT > escJam + 0.004;
-    var away = Math.max(Math.abs(ballP[3]), Math.abs(ballP[4]));
-    var beat = jammed ? 0.30 + 0.30 * Math.sin(performance.now() / 240) : 0;
+  function escDraw() {
+    var k, i;
+    var q = BALL_R * BALL_R - bp[3] * bp[3] - bp[4] * bp[4];
+    var rEff = q > 0 ? Math.sqrt(q) : 0;
+    var away = Math.max(Math.abs(bp[3]), Math.abs(bp[4]));
+    var cage = 0.46 + 0.48 * cageHit;
 
     escCol.fill(0);
     segN = 0;
 
-    if (dim === 1) {                                  // la recta como universo
-      for (var j = 0; j < 5; j++) { tmpA[j] = 0; tmpB[j] = 0; }
-      tmpA[0] = -1.15; tmpB[0] = 1.15;
-      seg(tmpA, tmpB, 0.2);
-    }
-    if (dim >= 1) {                                   // la otra pelota
-      var ob = dim === 1 ? 0.52 + beat : 0.2;
-      hoop(OBST_R, ob, 20, 0);
-      if (dim >= 3) { hoop(OBST_R, ob, 20, 1); hoop(OBST_R, ob, 20, 2); }
-    }
-    if (dim >= 2) hoop(RING_R, dim === 2 ? 0.52 + beat : 0.2, 56, 0);
-    if (dim >= 3) boxWire(BOX_H, dim === 3 ? 0.52 + beat : 0.22);
-
-    if (dim >= 1) {                                   // adónde quería llegar
-      var g = PATHS[dim][PATHS[dim].length - 1], s = 0.08, k;
-      for (k = 0; k < 5; k++) { tmpA[k] = g[k]; tmpB[k] = g[k]; }
-      tmpA[0] = g[0] - s; tmpA[1] = g[1] - s; tmpB[0] = g[0] + s; tmpB[1] = g[1] + s;
-      seg(tmpA, tmpB, 0.26);
-      tmpA[0] = g[0] - s; tmpA[1] = g[1] + s; tmpB[0] = g[0] + s; tmpB[1] = g[1] - s;
-      seg(tmpA, tmpB, 0.26);
+    // el borde del universo: tenue, pero explica dónde acaba todo
+    if (dim === 1) {
+      for (k = 0; k < 5; k++) { tmpA[k] = 0; tmpB[k] = 0; }
+      tmpA[0] = -WORLD_R; tmpB[0] = WORLD_R;
+      seg(tmpA, tmpB, 0.09);
+    } else if (dim === 2) {
+      hoop(WORLD_R, 0.075, 44, 0);
+    } else if (dim >= 3) {
+      hoop(WORLD_R, 0.055, 40, 0); hoop(WORLD_R, 0.055, 40, 1); hoop(WORLD_R, 0.055, 40, 2);
     }
 
-    var TR = 64;                                      // el rastro recorrido
-    for (var i = 0; i < TR; i++) {
-      pathAt(dim, t * i / TR, tmpA);
-      pathAt(dim, t * (i + 1) / TR, tmpB);
+    // la jaula de esta dimensión brilla; lo que ya sabe esquivar, no
+    if (dim >= 1) {
+      var ob = dim === 1 ? cage : 0.19;
+      hoop(OBST_R, ob, 18, 0);
+      if (dim >= 3) { hoop(OBST_R, ob, 18, 1); hoop(OBST_R, ob, 18, 2); }
+    }
+    if (dim >= 2) hoop(RING_R, dim === 2 ? cage : 0.18, 48, 0);
+    if (dim >= 3) boxWire(BOX_H, cage);
+
+    if (dim >= 1) {                                   // la marca de «afuera»
+      var s = 0.075, eb = free ? 0.7 : 0.2;
+      for (k = 0; k < 5; k++) { tmpA[k] = 0; tmpB[k] = 0; }
+      tmpA[0] = EXIT_X - s; tmpA[1] = -s; tmpB[0] = EXIT_X + s; tmpB[1] = s;
+      seg(tmpA, tmpB, eb);
+      tmpA[0] = EXIT_X - s; tmpA[1] = s; tmpB[0] = EXIT_X + s; tmpB[1] = -s;
+      seg(tmpA, tmpB, eb);
+    }
+
+    // el rastro: se apaga a la mitad en los tramos que pasó fuera de tu espacio
+    for (i = 0; i < trailN - 1; i++) {
+      var ia = ((trailHead - trailN + i + TRAIL * 2) % TRAIL) * 5;
+      var ib = ((trailHead - trailN + i + 1 + TRAIL * 2) % TRAIL) * 5;
+      for (k = 0; k < 5; k++) { tmpA[k] = trailBuf[ia + k]; tmpB[k] = trailBuf[ib + k]; }
       var gone = Math.max(Math.abs(tmpB[3]), Math.abs(tmpB[4])) > BALL_R;
-      seg(tmpA, tmpB, (0.38 + 0.32 * (i / TR)) * (gone ? 0.45 : 1));
+      seg(tmpA, tmpB, (0.10 + 0.34 * (i / TRAIL)) * (gone ? 0.45 : 1));
     }
 
-    if (jammed && dim >= 2) contactMark(0.6 + beat);
+    // la huella real: el corte de la pelota con tu espacio, encogiéndose
+    if (rEff > 0.008 && away > 0.012) {
+      for (k = 0; k < 5; k++) tmpA[k] = k < 3 ? bp[k] : 0;
+      ringAt(tmpA, 1, 0, 0, rEff, 0.34, 14);
+      ringAt(tmpA, 0, 1, 0, rEff, 0.34, 14);
+    }
 
-    proj5(ballP, o3);
+    if (cageTouch) ringAt(ctP, ctN[0], ctN[1], ctN[2], BALL_R * 1.3, 0.3 + 0.45 * cageHit, 16);
+
+    proj5(bp, o3);
     ebPos[0] = o3[0]; ebPos[1] = o3[1]; ebPos[2] = o3[2];
-    // fuera de tu espacio la pelota se vuelve fantasma
-    var solid = away <= BALL_R ? 1 : Math.max(0.2, 1 - (away - BALL_R) * 1.1);
+    var solid = away <= BALL_R ? 1 : Math.max(0.22, 1 - (away - BALL_R) * 1.15);
     ebCol[0] = ebCol[1] = ebCol[2] = solid;
+    escBall.material.size = 0.38 * (0.55 + 0.45 * (rEff / BALL_R));
 
     escGeo.attributes.position.needsUpdate = true;
     escGeo.attributes.color.needsUpdate = true;
     ebGeo.attributes.position.needsUpdate = true;
     ebGeo.attributes.color.needsUpdate = true;
+  }
 
-    if (dim >= 4) {
-      setMeter(markW, valW, ballP[3]);
-      if (dim >= 5) setMeter(markV, valV, ballP[4]);
-    }
+  // ¿Está fuera de la jaula y de vuelta en tu espacio? Eso, y sólo eso, es
+  // haber escapado. En 0D-3D es inalcanzable por geometría, no por guion.
+  function checkFree() {
+    var out = false;
+    if (dim === 1) out = bp[0] > OBST_R + BALL_R * 0.4;
+    else if (dim === 2) out = Math.sqrt(bp[0] * bp[0] + bp[1] * bp[1]) > RING_R + RING_T;
+    else if (dim >= 3) out = Math.max(Math.abs(bp[0]), Math.abs(bp[1]), Math.abs(bp[2])) > BOX_H;
+    free = out && Math.max(Math.abs(bp[3]), Math.abs(bp[4])) < BALL_R * 0.5;
+  }
 
+  function escReadout() {
+    var away = Math.max(Math.abs(bp[3]), Math.abs(bp[4]));
+    var spd = Math.sqrt(bv[0] * bv[0] + bv[1] * bv[1] + bv[2] * bv[2] +
+                        bv[3] * bv[3] + bv[4] * bv[4]);
     var st;
     if (dim === 0) st = 'Sin ejes';
-    else if (jammed) st = 'Bloqueado';
+    else if (free) st = 'Libre';
     else if (away > BALL_R) st = 'Fuera de tu espacio';
-    else if (escT >= 0.999) st = escJam >= 1 ? 'Libre' : 'Bloqueado';
-    else st = 'Avanzando';
+    else if (cageTouch) st = 'Bloqueado';
+    else if (spd > 0.09) st = 'Rodando';
+    else st = 'Atrapada';
     if (elState.textContent !== st) elState.textContent = st;
+    var hot = free || st === 'Bloqueado' || st === 'Fuera de tu espacio';
+    if (hot !== elState.classList.contains('on')) elState.classList.toggle('on', hot);
+
+    if (dim >= 4) {
+      setMeter(markW, valW, bp[3]);
+      if (dim >= 5) setMeter(markV, valV, bp[4]);
+    }
+  }
+
+  function escStep(dt) {
+    if (dt < 1e-4) dt = 1e-4;     // un cuadro de duración cero haría NaN
+    frameKin(dt);
+    buildG();
+    cageTouch = false;
+    if (dim > 0) {
+      // subpasos fijos: con dt de un cuadro entero las paredes se atraviesan
+      var n = Math.ceil(dt / 0.005);
+      if (n < 1) n = 1;
+      if (n > 10) n = 10;
+      var h = dt / n;
+      for (var s = 0; s < n; s++) escSub(h);
+    }
+    cageHit *= Math.exp(-dt * 3.4);
+    pushTrail();
+    checkFree();
+    escDraw();
+    escReadout();
+  }
+
+  // Suelta la pelota otra vez donde empieza esta dimensión.
+  function dropBall() {
+    var s = START[dim], k;
+    for (k = 0; k < 5; k++) {
+      bp[k] = k < dim ? s[k] : 0;
+      bv[k] = 0;
+    }
+    trailN = 0;
+    trailHead = 0;
+    inBox = true;
+    free = false;
+    cageHit = 0;
+    cageTouch = false;
+    omg[0] = omg[1] = omg[2] = 0;
+    alp[0] = alp[1] = alp[2] = 0;
+    qPrev.copy(escGroup.quaternion);
   }
 
   function setMeter(mark, val, x) {
@@ -1356,8 +1624,14 @@
   var elLens = document.getElementById('lens');
   var elEscPanel = document.getElementById('escPanel');
   var elScrub = document.getElementById('scrub');
-  var elRange = document.getElementById('escRange');
   var elState = document.getElementById('escState');
+  var elHow = document.getElementById('escHow');
+  var elReset = document.getElementById('escReset');
+  var elTiltW = document.getElementById('tiltW');
+  var elTiltV = document.getElementById('tiltV');
+  var rowTW = document.getElementById('tiltRowW');
+  var rowTV = document.getElementById('tiltRowV');
+  var elHint = document.getElementById('hint');
   var elEscJail = document.getElementById('escJail');
   var elEscOut = document.getElementById('escOut');
   var elEscCount = document.getElementById('escCount');
@@ -1376,18 +1650,44 @@
     reveal(elEscOut, e.out, 130);
     elMeter.hidden = dim < 4;
     rowV.hidden = dim < 5;
+    rowTW.hidden = dim < 4;
+    rowTV.hidden = dim < 5;
+    elHow.textContent = dim === 0 ? 'No hay nada que inclinar'
+                      : dim >= 4 ? 'Arrastra para inclinar · el mando la saca de tu espacio'
+                                 : 'Arrastra la jaula para inclinarla';
+    writeHint();
   }
 
-  // Rearma el intento: recalcula dónde choca de verdad y elige el ángulo
-  // de cámara desde el que esa dimensión se entiende mejor.
+  // Los mandos no mueven la pelota: inclinan la gravedad fuera de tu espacio,
+  // y es la pelota la que decide qué hacer con eso.
+  function setTilt(w, v) {
+    tiltW = Math.max(-TILT_MAX, Math.min(TILT_MAX, w));
+    tiltV = Math.max(-TILT_MAX, Math.min(TILT_MAX, v));
+    elTiltW.value = Math.round(tiltW / TILT_MAX * 100);
+    elTiltV.value = Math.round(tiltV / TILT_MAX * 100);
+  }
+
+  function writeHint() {
+    var l = ['← → cambia de dimensión'];
+    if (escMode) {
+      l.push('arrastra para inclinar la jaula');
+      if (dim >= 4) l.push('mayús + arrastrar empuja hacia ana');
+      l.push('R suelta la pelota otra vez');
+    } else {
+      l.push('arrastra para orbitar');
+      l.push('el panel avanza solo');
+    }
+    elHint.innerHTML = l.join('<br>');
+  }
+
+  // Rearma el intento: deja la pelota en su sitio, endereza la gravedad y
+  // elige el ángulo desde el que esa dimensión se entiende mejor.
   function armEscape() {
-    escJam = findJam(dim);
-    escT = 0;
-    escAuto = true;
+    setTilt(0, 0);
     escUserRot = false;
-    elRange.value = 0;
-    escAimX = dim >= 3 ? 0.5 : 0.06;
-    escAimY = dim >= 3 ? -0.55 : 0;
+    escAimX = dim >= 3 ? 0.50 : (dim === 2 ? 0.40 : 0.55);
+    escAimY = dim >= 3 ? -0.55 : (dim === 2 ? -0.45 : -0.62);
+    dropBall();
     escPaint();
   }
 
@@ -1401,21 +1701,37 @@
     elLens.hidden = on;
     elEscPanel.hidden = !on;
     elScrub.hidden = !on;
-    if (on) armEscape();
+    if (on) armEscape(); else writeHint();
   }
 
   modeFig.addEventListener('click', function () { setMode(false); });
   modeEsc.addEventListener('click', function () { setMode(true); });
-  elRange.addEventListener('input', function () {
-    escAuto = false;
-    escT = parseInt(elRange.value, 10) / 1000;
-  });
+
+  function readTilts() {
+    setTilt(parseInt(elTiltW.value, 10) / 100 * TILT_MAX,
+            parseInt(elTiltV.value, 10) / 100 * TILT_MAX);
+  }
+  // Al soltar cerca del centro el mando se endereza solo: volver a tu espacio
+  // es el gesto que cierra la fuga, y no debería exigir puntería.
+  function snapTilts() {
+    if (Math.abs(parseInt(elTiltW.value, 10)) < 9) elTiltW.value = 0;
+    if (Math.abs(parseInt(elTiltV.value, 10)) < 9) elTiltV.value = 0;
+    readTilts();
+  }
+  elTiltW.addEventListener('input', readTilts);
+  elTiltV.addEventListener('input', readTilts);
+  elTiltW.addEventListener('change', snapTilts);
+  elTiltV.addEventListener('change', snapTilts);
+  elReset.addEventListener('click', dropBall);
 
   function setDim(next) {
     if (next < 0) next = 0;
     if (next > MAXD) next = MAXD;
     if (next === dim) return;
     dim = next;
+    // La pelota se suelta ya, no al terminar el fundido: durante esos 170 ms
+    // la dimensión nueva y la posición vieja no se llevan bien.
+    if (escMode) dropBall();
 
     var j;
     for (j = 0; j < buttons.length; j++) {
@@ -1457,6 +1773,7 @@
     if (ev.key === 'ArrowRight' || ev.key === 'ArrowUp') { setDim(dim + 1); ev.preventDefault(); }
     else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowDown') { setDim(dim - 1); ev.preventDefault(); }
     else if (ev.key >= '0' && ev.key <= '5') { setDim(parseInt(ev.key, 10)); }
+    else if (escMode && (ev.key === 'r' || ev.key === 'R')) { dropBall(); }
   });
 
   stage.addEventListener('pointerdown', function (e) {
@@ -1468,15 +1785,21 @@
   });
   stage.addEventListener('pointermove', function (e) {
     if (!dragging) return;
-    escUserRot = true;              // el usuario toma el control de la vista
-    velY = (e.clientX - lastX) * 0.005;
-    velX = (e.clientY - lastY) * 0.005;
-    spinY += velY;
-    spinX += velX;
-    if (spinX > 1.25) spinX = 1.25;
-    if (spinX < -1.25) spinX = -1.25;
+    var dx = e.clientX - lastX, dy = e.clientY - lastY;
     lastX = e.clientX;
     lastY = e.clientY;
+    // Con mayús pulsada el arrastre no gira nada: empuja la gravedad fuera de
+    // tu espacio, lo mismo que los mandos de abajo.
+    if (escMode && e.shiftKey && dim >= 4) {
+      setTilt(tiltW + dx * 0.006, dim >= 5 ? tiltV - dy * 0.006 : tiltV);
+      velX = velY = 0;
+      return;
+    }
+    escUserRot = true;              // el usuario toma el control de la vista
+    velY = dx * 0.005;
+    velX = dy * 0.005;
+    spinY += velY;
+    spinX += velX;
   });
   function release() { dragging = false; stage.classList.remove('dragging'); }
   stage.addEventListener('pointerup', release);
