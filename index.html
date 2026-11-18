@@ -399,6 +399,7 @@
     font-weight: 500;
     letter-spacing: .12em;
     text-transform: uppercase;
+    white-space: nowrap;          /* en pantallas angostas se partía en dos líneas */
     cursor: pointer;
     transition: background .45s cubic-bezier(.4, 0, .2, 1), color .45s cubic-bezier(.4, 0, .2, 1);
   }
@@ -489,7 +490,9 @@
       border-radius: 3px;
     }
     #lensTitle, #lensBody, #escJail, #escOut { min-height: 0; }
-    #escPanel { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+    /* La tarjeta del escape se apoya sobre la barra del intento, que crece
+       con los mandos de 4D y 5D; --scrub-h la mide el script. */
+    #escPanel { bottom: calc(86px + var(--scrub-h, 64px) + 14px + env(safe-area-inset-bottom, 0px)); }
     #scrub { width: calc(100vw - 40px); }
     #escHow { display: none; }
     #escState { min-width: 0; }
@@ -503,6 +506,101 @@
     #lensBody, #escOut { font-size: 12.5px; }
     #dial button { min-width: 42px; padding: 0 8px; }
     #mode button { padding: 0 11px; letter-spacing: .08em; }
+  }
+  /* Teléfono vertical: el conmutador va arriba en su propia fila, el texto
+     debajo a todo lo ancho y las tarjetas abajo sobre el dial. La figura se
+     encaja en el hueco que queda entre los dos (ver «encuadre» en el script). */
+  @media (max-width: 720px) and (min-height: 501px) {
+    #mode { top: calc(14px + env(safe-area-inset-top, 0px)); }
+    #hud {
+      top: calc(64px + env(safe-area-inset-top, 0px));
+      right: 20px;
+      width: auto;
+      gap: 9px;
+    }
+    #desc { line-height: 1.5; }
+    .stats { flex-direction: row; flex-wrap: wrap; gap: 3px 12px; }
+    #dial { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+    #lens { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+    #scrub { bottom: calc(74px + env(safe-area-inset-bottom, 0px)); }
+    #escPanel { bottom: calc(74px + var(--scrub-h, 64px) + 10px + env(safe-area-inset-bottom, 0px)); }
+    /* Alturas mínimas: que la tarjeta no cambie de tamaño con cada ejemplo
+       y la figura, que se ajusta al hueco, no se mueva con ella. */
+    #lensTitle, #escJail { min-height: 2.6em; }
+    #lensBody { min-height: 6.6em; }
+    /* En el escape manda la tarjeta de la jaula: arriba basta con el nombre. */
+    body.esc #axis, body.esc #desc, body.esc .stats { display: none; }
+  }
+  /* Pantallas bajas: la explicación de cada tarjeta se pliega para dejarle
+     sitio a la figura; tocar la tarjeta la abre y la vuelve a cerrar. */
+  @media (max-width: 900px) and (max-height: 760px), (max-height: 500px) {
+    #lensCard, #escCard { cursor: pointer; pointer-events: auto; }
+    #lensCard:not(.open) #lensBody,
+    #escCard:not(.open) #escOut,
+    #escCard:not(.open) #meter { display: none; }
+    #lensCount::after, #escCount::after { content: '\00a0\00a0+'; color: var(--ink-2); }
+    #lensCard.open #lensCount::after, #escCard.open #escCount::after { content: '\00a0\00a0\2212'; }
+  }
+  /* Teléfono horizontal: tres columnas. A la izquierda el conmutador, el texto
+     y el dial; a la derecha las tarjetas y los mandos; la figura en medio. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    #mode {
+      top: calc(12px + env(safe-area-inset-top, 0px));
+      left: calc(18px + env(safe-area-inset-left, 0px));
+      transform: none;
+    }
+    #mode button { height: 28px; padding: 0 12px; letter-spacing: .08em; }
+    #hud {
+      top: calc(58px + env(safe-area-inset-top, 0px));
+      left: calc(20px + env(safe-area-inset-left, 0px));
+      right: auto;
+      width: clamp(190px, 28vw, 260px);
+      gap: 7px;
+    }
+    #name { font-size: clamp(26px, 4vw, 34px); }
+    #desc { font-size: 11.5px; line-height: 1.5; }
+    #dial {
+      left: calc(18px + env(safe-area-inset-left, 0px));
+      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      transform: none;
+      padding: 4px;
+    }
+    #dial button { min-width: 34px; height: 30px; padding: 0 6px; font-size: 11px; }
+    #lens, #escPanel {
+      left: auto;
+      right: calc(20px + env(safe-area-inset-right, 0px));
+      top: calc(12px + env(safe-area-inset-top, 0px));
+      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      width: clamp(190px, 28vw, 260px);
+      padding-block: 0;
+    }
+    #escPanel { bottom: calc(24px + var(--scrub-h, 64px) + env(safe-area-inset-bottom, 0px)); }
+    #scrub {
+      left: auto;
+      right: calc(20px + env(safe-area-inset-right, 0px));
+      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      transform: none;
+      width: clamp(190px, 28vw, 260px);
+    }
+    #lensCard, #escCard {
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      padding: 0;
+    }
+    #lensTitle, #escJail { font-size: 14px; }
+    #lensBody, #escOut { font-size: 12px; }
+    /* también para los teléfonos grandes, más anchos que 900 en horizontal */
+    #lensTitle, #lensBody, #escJail, #escOut { min-height: 0; }
+    #escHow, #hint { display: none; }
+    #escState { min-width: 0; }
+  }
+  /* Con el dedo: mandos y puntos más grandes para acertarles. */
+  @media (pointer: coarse) {
+    #lensDots button { height: 24px; }
+    .tilt input { height: 30px; }
+    .tilt input::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -10px; }
+    .tilt input::-moz-range-thumb { width: 20px; height: 20px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .swap { transition: none; }
@@ -815,13 +913,29 @@
   points.frustumCulled = false;
   group.add(points);
 
+  // Hueco de la pantalla donde va la figura, en píxeles: centro y radio.
+  // En la computadora es la pantalla entera; en el celular lo calcula el
+  // «encuadre», al final del script, y la cámara llega a él suavemente.
+  var view = { x: 0, y: 0, r: 1, tx: 0, ty: 0, tr: 1, ready: false };
+
+  function placeCamera() {
+    var w = window.innerWidth, h = window.innerHeight;
+    var t = Math.tan(camera.fov * Math.PI / 360);
+    // FRAME_R mide `view.r` píxeles en pantalla...
+    camera.position.z = FRAME_R * h / (2 * t * view.r);
+    // ...y la imagen se corre para que el centro de la escena caiga en el hueco
+    camera.setViewOffset(w, h, w / 2 - view.x, h / 2 - view.y, w, h);
+  }
+
   function resize() {
     var w = window.innerWidth, h = window.innerHeight;
     renderer.setSize(w, h);
     camera.aspect = w / h;
-    var t = Math.tan(camera.fov * Math.PI / 360);
-    camera.position.z = Math.max(FRAME_R / t, FRAME_R / (t * camera.aspect));
-    camera.updateProjectionMatrix();
+    view.x = view.tx = w / 2;
+    view.y = view.ty = h / 2;
+    view.r = view.tr = Math.min(w, h) / 2;
+    view.ready = false;            // el próximo cuadro mide de nuevo y salta sin animar
+    placeCamera();
   }
   window.addEventListener('resize', resize);
   resize();
@@ -983,6 +1097,7 @@
       step(dt);
       lensTick(dt);
     }
+    frameTick(dt);
     renderer.render(scene, camera);
     requestAnimationFrame(tick);
   }
@@ -1606,7 +1721,8 @@
   }
 
   function lensTick(dt) {
-    if (lensHold) return;
+    // Quieta mientras la lees: con el puntero encima, o abierta en pantallas bajas
+    if (lensHold || (foldable.matches && elLensCard.classList.contains('open'))) return;
     lensT += dt;
     if (lensT >= DWELL) {
       lensT = 0;
@@ -1698,6 +1814,7 @@
     modeEsc.setAttribute('aria-selected', on ? 'true' : 'false');
     group.visible = !on;
     escGroup.visible = on;
+    document.body.classList.toggle('esc', on);
     elLens.hidden = on;
     elEscPanel.hidden = !on;
     elScrub.hidden = !on;
@@ -1776,7 +1893,9 @@
     else if (escMode && (ev.key === 'r' || ev.key === 'R')) { dropBall(); }
   });
 
+  // Sólo el primer dedo gira: un segundo dedo haría saltar la rotación
   stage.addEventListener('pointerdown', function (e) {
+    if (!e.isPrimary) return;
     dragging = true;
     lastX = e.clientX;
     lastY = e.clientY;
@@ -1784,7 +1903,7 @@
     if (stage.setPointerCapture) stage.setPointerCapture(e.pointerId);
   });
   stage.addEventListener('pointermove', function (e) {
-    if (!dragging) return;
+    if (!dragging || !e.isPrimary) return;
     var dx = e.clientX - lastX, dy = e.clientY - lastY;
     lastX = e.clientX;
     lastY = e.clientY;
@@ -1805,6 +1924,87 @@
   stage.addEventListener('pointerup', release);
   stage.addEventListener('pointercancel', release);
   stage.addEventListener('pointerleave', release);
+
+  // ---- encuadre -------------------------------------------------------------
+  // En el celular los textos ocupan arriba y abajo (o los costados, en
+  // horizontal) y taparían la figura. Aquí se busca el hueco libre más grande
+  // que dejan, y la cámara centra y ajusta la figura dentro de él. En pantallas
+  // anchas la figura sigue usando la pantalla entera, como siempre.
+  var compact = window.matchMedia('(max-width: 900px), (max-height: 500px)');
+  var foldable = window.matchMedia('(max-width: 900px) and (max-height: 760px), (max-height: 500px)');
+  var elEscCard = document.getElementById('escCard');
+  var covers = [document.getElementById('mode'), document.getElementById('hud'), elLensCard, elEscCard, elScrub, dial];
+  var FRAME_GAP = 12;              // aire entre la figura y el texto, en píxeles
+  var measureIn = 0;
+
+  function measureFrame() {
+    var w = window.innerWidth, h = window.innerHeight;
+    var free = { l: 0, t: 0, r: w, b: h };
+    if (compact.matches) {
+      var boxes = [];
+      covers.forEach(function (el) {
+        var b = el.getBoundingClientRect();
+        if (b.width > 0 && b.height > 0) boxes.push(b);   // los ocultos miden cero
+      });
+      // Los más grandes primero: son los que deciden de qué lado queda el hueco
+      boxes.sort(function (a, b) { return b.width * b.height - a.width * a.height; });
+      boxes.forEach(function (b) {
+        var l = b.left - FRAME_GAP, t = b.top - FRAME_GAP;
+        var r = b.right + FRAME_GAP, bt = b.bottom + FRAME_GAP;
+        if (r <= free.l || l >= free.r || bt <= free.t || t >= free.b) return;
+        // Cuatro maneras de esquivarlo (quedarse debajo, encima, a su derecha o
+        // a su izquierda); gana la que deja sitio para el círculo más grande
+        var options = [
+          { l: free.l, t: Math.max(free.t, bt), r: free.r, b: free.b },
+          { l: free.l, t: free.t, r: free.r, b: Math.min(free.b, t) },
+          { l: Math.max(free.l, r), t: free.t, r: free.r, b: free.b },
+          { l: free.l, t: free.t, r: Math.min(free.r, l), b: free.b }
+        ];
+        var best = free, size = -Infinity;
+        options.forEach(function (o) {
+          var s = Math.min(o.r - o.l, o.b - o.t);
+          if (s > size) { size = s; best = o; }
+        });
+        free = best;
+      });
+    }
+    view.tx = (free.l + free.r) / 2;
+    view.ty = (free.t + free.b) / 2;
+    view.tr = Math.max(40, Math.min(free.r - free.l, free.b - free.t) / 2);
+  }
+
+  // Mide unas siete veces por segundo y lleva la cámara al hueco poco a poco:
+  // cuando una tarjeta cambia de alto, la figura se acomoda sin saltar
+  function frameTick(dt) {
+    measureIn -= dt;
+    if (measureIn <= 0 || !view.ready) {
+      measureIn = 0.15;
+      measureFrame();
+    }
+    var k = view.ready ? 1 - Math.exp(-dt * 6) : 1;
+    view.ready = true;
+    var dx = view.tx - view.x, dy = view.ty - view.y, dr = view.tr - view.r;
+    if (Math.abs(dx) + Math.abs(dy) + Math.abs(dr) < 0.05) return;
+    view.x += dx * k;
+    view.y += dy * k;
+    view.r += dr * k;
+    placeCamera();
+  }
+
+  // La tarjeta del escape se apoya sobre la barra del intento, que cambia de
+  // alto con los mandos de 4D y 5D: el CSS lee su altura de --scrub-h
+  function measureScrub() {
+    document.documentElement.style.setProperty('--scrub-h', elScrub.offsetHeight + 'px');
+  }
+  if (window.ResizeObserver) new ResizeObserver(measureScrub).observe(elScrub);
+
+  // Pantallas bajas: tocar una tarjeta abre o cierra su explicación
+  [elLensCard, elEscCard].forEach(function (card) {
+    card.addEventListener('click', function (ev) {
+      if (!foldable.matches || ev.target.closest('button')) return;
+      card.classList.toggle('open');
+    });
+  });
 })();
 </script>
 <!--ARTIFACT-END-->

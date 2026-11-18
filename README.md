@@ -27,6 +27,8 @@ un CDN, así que necesita conexión a internet.
 
 - `←` `→` cambian de dimensión.
 - Arrastra para orbitar la figura (o para inclinar la jaula en *El escape*).
+- En el celular o la tablet, vertical u horizontal: toca 0D–5D para cambiar de dimensión y arrastra
+  con un dedo para girar. En pantallas bajas, toca una tarjeta para abrir su explicación.
 
 ## Tecnología
 
