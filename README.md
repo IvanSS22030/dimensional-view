@@ -3,6 +3,8 @@
 Un visor interactivo de dimensiones, del punto (0D) al penteracto (5D), pensado para que alguien
 que no sabe nada de dimensiones termine entendiéndolas.
 
+**Pruébalo en vivo:** https://ivanss22030.github.io/dimensional-view/
+
 ![El teseracto en Dimensional View](capturas/teseracto.webp)
 
 ## Qué hace
@@ -19,7 +21,8 @@ que no sabe nada de dimensiones termine entendiéndolas.
 
 ## Cómo abrirlo
 
-Es un solo archivo: abre `index.html` en el navegador. Usa [three.js](https://threejs.org/) desde
+Ábrelo [en vivo](https://ivanss22030.github.io/dimensional-view/), o descarga el repositorio y abre
+`index.html` en el navegador: es un solo archivo. Usa [three.js](https://threejs.org/) desde
 un CDN, así que necesita conexión a internet.
 
 - `←` `→` cambian de dimensión.
